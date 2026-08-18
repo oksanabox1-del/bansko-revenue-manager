@@ -1,0 +1,21 @@
+function monthDaysCount(d){return new Date(d.getFullYear(),d.getMonth()+1,0).getDate()}
+function moveMonth(n){viewMonth.setMonth(viewMonth.getMonth()+n);viewMonth.setDate(1);selectedDay=ymd(viewMonth);render()}
+function goToday(){const d=new Date();viewMonth=new Date(d.getFullYear(),d.getMonth(),1);selectedDay=ymd(d);render()}
+function selectDay(day){selectedDay=day;render()}
+function renderMonth(m,o){
+  const grid=$('monthGrid');grid.innerHTML='';const y=viewMonth.getFullYear(),mo=viewMonth.getMonth(),first=new Date(y,mo,1),days=monthDaysCount(first),offset=(first.getDay()+6)%7,today=ymd(new Date());let busy=0;
+  for(let i=0;i<offset;i++){const e=document.createElement('div');e.className='day blank';grid.appendChild(e)}
+  for(let dn=1;dn<=days;dn++){
+    const d=new Date(y,mo,dn),day=ymd(d),src=m[day]||[],book=src.length>0,q=price(day,m,o);if(book)busy++;
+    const cell=document.createElement('div');cell.className='day'+(book?' busyday':'')+(day===today?' today':'')+(day===selectedDay?' selected':'');cell.onclick=()=>selectDay(day);
+    const chips=src.map(s=>`<span class="chip ${s}">${esc(L[s]||s)}</span>`).join('');
+    cell.innerHTML=`<div class="daynum">${dn}</div>${book?`<div class="busylabel">Занято</div><div class="channelchips">${chips}</div>`:`<div class="dayprice">€${q.p}</div>${q.m!==null?`<div class="marketmini">рынок €${q.m}</div>`:''}`}`;grid.appendChild(cell)
+  }
+  const tail=(7-((offset+days)%7))%7;for(let i=0;i<tail;i++){const e=document.createElement('div');e.className='day blank';grid.appendChild(e)}
+  $('monthTitle').textContent=viewMonth.toLocaleDateString('ru-RU',{month:'long',year:'numeric'});$('monthMeta').textContent=`Занято ${busy} из ${days} ночей · загрузка ${Math.round(busy/days*100)}% · свободно ${days-busy}`;
+  renderDetail(m,o)
+}
+function renderDetail(m,o){if(!selectedDay){$('dayDetail').innerHTML='<div class="sm">Выбери день в календаре.</div>';return}const src=m[selectedDay]||[],book=src.length>0,q=price(selectedDay,m,o),d=fromYMD(selectedDay);const date=d.toLocaleDateString('ru-RU',{weekday:'long',day:'numeric',month:'long',year:'numeric'});$('dayDetail').innerHTML=`<div class="detailtop"><div><div class="detaildate">${date}</div><span class="badgestatus ${book?'busy':'free'}">${book?'ЗАНЯТО':'СВОБОДНО'}</span></div>${book?'':`<div class="bigprice">€${q.p}</div>`}</div><div class="detailgrid"><div class="detailitem"><span>Канал / статус</span><b>${book?src.map(s=>esc(L[s]||s)).join(', '):'можно продавать'}</b></div><div class="detailitem"><span>Market median</span><b>${q.m===null?'—':'€'+q.m}</b></div><div class="detailitem"><span>Pricing logic</span><b>${book?'бронь':esc(q.why.join(' · '))}</b></div></div>`}
+function render(){const m=bm(),st=$('start').value||ymd(new Date()),o=occ(m,st,30),n=Math.max(7,Math.min(365,parseInt($('days').value)||120));let d=fromYMD(st),free=0,inv=0,ps=[],ms=[],rows=[];for(let i=0;i<n;i++){const day=ymd(d),src=m[day]||[],book=src.length>0,q=price(day,m,o);if(i<30&&!book){free++;inv+=q.p}if(!book)ps.push(q.p);if(q.m!==null)ms.push(q.m);rows.push({day,book,src,market:q.m,price:q.p,why:q.why});d.setDate(d.getDate()+1)}$('occ').textContent=Math.round(o*100)+'%';$('free').textContent=free;$('avg').textContent=ps.length?'€'+Math.round(ps.reduce((a,b)=>a+b,0)/ps.length):'—';$('med').textContent=ms.length?'€'+Math.round(median(ms)):'—';$('inv').textContent='€'+Math.round(inv);window.rows=rows;rc();$('sync').textContent=Object.keys(ch).map(k=>L[k]+': '+ch[k].length+' брон.').join(' · ');renderMonth(m,o);save()}
+function csvOut(){render();const a=[['date','status','channel','market_median_eur','recommended_price_eur','reason'],...rows.map(r=>[r.day,r.book?'booked':'free',r.src.map(x=>L[x]).join('|'),r.market??'',r.book?'':r.price,r.why.join('|')])],s=a.map(r=>r.map(v=>'"'+String(v).replaceAll('"','""')+'"').join(',')).join('\n'),x=document.createElement('a');x.href=URL.createObjectURL(new Blob([s],{type:'text/csv;charset=utf-8'}));x.download='bansko-pricing.csv';x.click();URL.revokeObjectURL(x.href)}
+function demo(){const d=new Date(),aft=n=>{const x=new Date(d);x.setDate(x.getDate()+n);return ymd(x)};ch.airbnb=[{start:aft(2),end:aft(5),source:'airbnb'},{start:aft(14),end:aft(18),source:'airbnb'}];ch.booking=[{start:aft(8),end:aft(11),source:'booking'}];ch.vrbo=[{start:aft(25),end:aft(28),source:'vrbo'}];seed();goToday()}
